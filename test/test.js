@@ -113,10 +113,18 @@ describe('Server socket authentication', function() {
     server = new ServerSocketMock();
     client = new ClientSocketMock(5);
 
-    var postAuth = function(socket, tokenData) {
+    client.on('authenticated', function(err, authDone) {
+                authDone();
+              });
+    client.on('unauthorized', function(err, authDone) {
+                authDone();
+              });
+
+    var postAuth = function(socket, tokenData, postAuthDone) {
       assert.equal(tokenData.token, 'fixedtoken');
       assert.equal(socket, client);
-      done();
+
+      postAuthDone();
     };
 
     require('../lib/socketio-auth')(server, {
@@ -128,7 +136,10 @@ describe('Server socket authentication', function() {
     server.connect('/User', client);
 
     process.nextTick(function() {
-      client.emit('authentication', {token: 'fixedtoken'});
+      client.emit('authentication', {token: 'fixedtoken'},
+                  function() {
+                    done();
+                  });
     });
   });
 
