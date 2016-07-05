@@ -56,7 +56,7 @@ function authenticate(socket, data, cb) {
     cb(new Error('Missing credentials'));
   }
 
-  cb(null, data.token === 'fixedtoken');
+  cb(data.token === 'fixedtoken' ? null : new Error('Authentication failure'));
 }
 
 describe('Server socket authentication', function() {
@@ -91,34 +91,20 @@ describe('Server socket authentication', function() {
     });
   });
 
-  it('Should disconnect sockets that do not authenticate', function(done) {
-    server.connect('/User', client);
-    client.on('disconnect', function() {
-      done();
-    });
-  });
-
   it('Should authenticate with valid credentials', function(done) {
     server.connect('/User', client);
     process.nextTick(function() {
-      client.on('authenticated', function() {
-        assert(client.auth);
-        done();
-      });
-      client.emit('authentication', {token: 'fixedtoken'});
+      client.emit('authentication', {token: 'fixedtoken'}, function(err) {
+                    assert(err === null);
+                    assert(client.auth);
+                    done();
+                  });
     });
   });
 
   it('Should call post auth function', function(done) {
     server = new ServerSocketMock();
     client = new ClientSocketMock(5);
-
-    client.on('authenticated', function(err, authDone) {
-                authDone();
-              });
-    client.on('unauthorized', function(err, authDone) {
-                authDone();
-              });
 
     var postAuth = function(socket, tokenData, postAuthDone) {
       assert.equal(tokenData.token, 'fixedtoken');
@@ -147,11 +133,11 @@ describe('Server socket authentication', function() {
     server.connect('/User', client);
 
     process.nextTick(function() {
-      client.on('authenticated', function() {
-        assert.equal(server.nsps['/User'].connected[5], client);
-        done();
-      });
-      client.emit('authentication', {token: 'fixedtoken'});
+      client.emit('authentication', {token: 'fixedtoken'}, function(err) {
+                    assert(err === null);
+                    assert.equal(server.nsps['/User'].connected[5], client);
+                    done();
+                  });
     });
   });
 
@@ -159,11 +145,10 @@ describe('Server socket authentication', function() {
     server.connect('/User', client);
 
     process.nextTick(function() {
-      client.once('unauthorized', function(err) {
-        assert.equal(err.message, 'Authentication failure');
-        done();
-      });
-      client.emit('authentication', {token: 'invalid'});
+      client.emit('authentication', {token: 'invalid'}, function(err) {
+                    assert.equal(err.message, 'Authentication failure');
+                    done();
+                  });
     });
   });
 
@@ -171,40 +156,10 @@ describe('Server socket authentication', function() {
     server.connect('/User', client);
 
     process.nextTick(function() {
-      client.once('unauthorized', function(err) {
-        assert.equal(err.message, 'Missing credentials');
-        done();
-      });
-      client.emit('authentication', {});
-    });
-  });
-
-  it('Should disconnect on missing credentials', function(done) {
-    server.connect('/User', client);
-
-    process.nextTick(function() {
-      client.once('unauthorized', function() {
-        //make sure disconnect comes after unauthorized
-        client.once('disconnect', function() {
-          done();
-        });
-      });
-
-      client.emit('authentication', {});
-    });
-  });
-
-  it('Should disconnect on invalid credentials', function(done) {
-    server.connect('/User', client);
-
-    process.nextTick(function() {
-      client.once('unauthorized', function() {
-        //make sure disconnect comes after unauthorized
-        client.once('disconnect', function() {
-          done();
-        });
-      });
-      client.emit('authentication', {token: 'invalid'});
+      client.emit('authentication', {}, function(err) {
+                    assert.equal(err.message, 'Missing credentials');
+                    done();
+                  });
     });
   });
 
